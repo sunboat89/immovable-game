@@ -57,6 +57,17 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
 @keyframes countPop{from{transform:scale(1.6); opacity:0;} to{transform:scale(1); opacity:1;}}
 
 #btn-restart{position:absolute; top:14px; right:14px; z-index:9; padding:8px 10px; font-size:1rem; line-height:1; border-radius:2px;}
+#btn-pause{position:absolute; top:14px; right:14px; z-index:9; padding:12px 16px; font-size:1.6rem; line-height:1; border-radius:4px;}
+
+.support-box{margin-top:34px; padding-top:22px; border-top:1px solid var(--line); display:flex; flex-direction:column; align-items:center; gap:12px;}
+.support-links{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:340px;}
+.support-links a.btn{font-size:.72rem; padding:10px 14px; text-decoration:none;}
+
+@keyframes shake{
+  0%{transform:translate(0,0);} 20%{transform:translate(-6px,3px);} 40%{transform:translate(5px,-4px);}
+  60%{transform:translate(-4px,-2px);} 80%{transform:translate(3px,4px);} 100%{transform:translate(0,0);}
+}
+#game-wrap.shake{animation:shake .28s ease;}
 
 @media screen and (max-width:820px) and (orientation:portrait){
   html{
@@ -88,6 +99,26 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
     <p style="color:var(--paper-dim); max-width:34ch; margin:0 auto">Tap the lanes in time with the song. Hold the long notes, and watch for two-note chords. Built from the real beat of the track.</p>
     <button class="btn accent" id="btn-start" style="margin-top:10px">Tap to play</button>
     <p class="eyebrow" style="margin-top:26px">Desktop: D F G H &nbsp;·&nbsp; Mobile: tap the lanes &nbsp;·&nbsp; hold for sustained notes</p>
+
+    <div class="support-box">
+      <p class="eyebrow" style="color:var(--paper-dim)">If you liked it, support the artist</p>
+      <div class="support-links">
+        <a class="btn" href="https://open.spotify.com/track/49OVYRAIyJEACEmlsuPIKN" target="_blank" rel="noopener">Save Immovable</a>
+        <a class="btn" href="https://open.spotify.com/artist/09dAeA3OPza0biB1lYnrai" target="_blank" rel="noopener">Follow on Spotify</a>
+        <a class="btn" href="https://www.instagram.com/mocked.monkey/" target="_blank" rel="noopener">Follow on Instagram</a>
+        <a class="btn" href="https://open.spotify.com/intl-it/album/64OBRcdP6uWOfBTz26ZoRU" target="_blank" rel="noopener">Listen to Marasma</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAUSE MENU -->
+  <div id="pause-menu" class="screen hidden" style="z-index:20; background:rgba(20,19,15,.92)">
+    <p class="eyebrow">Paused</p>
+    <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px">
+      <button class="btn accent" id="btn-continue">Continue</button>
+      <button class="btn" id="btn-restart-confirm">Restart</button>
+      <button class="btn" id="btn-exit">Exit</button>
+    </div>
   </div>
 
   <!-- GAME SCREEN -->
@@ -95,7 +126,7 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
     <div id="game-wrap">
       <canvas id="game-canvas"></canvas>
       <div id="hud"><span class="score">SCORE <span id="score-val">0</span></span><span class="combo"><span id="combo-val">0</span>x</span></div>
-      <button class="btn" id="btn-restart" title="Restart">⟲</button>
+      <button class="btn" id="btn-pause" title="Pause">⏸</button>
       <div id="judgement"></div>
       <div id="intro-overlay" class="hidden"><span id="intro-overlay-text">Intro</span></div>
       <div class="lanes-touch">
@@ -117,7 +148,8 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
       <div class="tag" style="margin-top:14px; color:var(--listen)">Immovable · Mocked Monkey</div>
     </div>
     <div style="display:flex; gap:12px; margin-top:20px; flex-wrap:wrap; justify-content:center">
-      <button class="btn accent" id="btn-download">Download score card</button>
+      <button class="btn accent" id="btn-share">Share score</button>
+      <button class="btn" id="btn-download">Download score card</button>
       <button class="btn" id="btn-replay">Play again</button>
     </div>
   </div>
@@ -173,6 +205,48 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEwBMb2dpYyBQcm8gWCAxMS4wLjFDT00AAGgAZW
   // --- lightweight particle / ring FX for correct hits ---
   const particles = [];
   const rings = [];
+  const popups = []; // floating "+N" text for hold-note bonuses
+
+  // --- tiny WebAudio chime for a completed hold note ---
+  let audioCtx = null;
+  function ensureAudioCtx() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function playChime() {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    [880, 1318.5, 1760].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0, now + i * 0.025);
+      gain.gain.linearRampToValueAtTime(0.16, now + i * 0.025 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.025 + 0.4);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now + i * 0.025);
+      osc.stop(now + i * 0.025 + 0.42);
+    });
+  }
+  function screenShake() {
+    const wrap = document.getElementById('game-wrap');
+    wrap.classList.remove('shake');
+    void wrap.offsetWidth; // restart animation
+    wrap.classList.add('shake');
+    setTimeout(() => wrap.classList.remove('shake'), 300);
+  }
+  function spawnPopup(lane, text, color) {
+    popups.push({
+      x: lane * laneW + laneW / 2,
+      y: hitY,
+      text, color,
+      life: 0, maxLife: 0.9
+    });
+  }
 
   function spawnHitFx(lane, color) {
     const x = lane * laneW + laneW / 2;
@@ -226,6 +300,17 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEwBMb2dpYyBQcm8gWCAxMS4wLjFDT00AAGgAZW
       ctx.beginPath();
       ctx.arc(r.x, r.y, r.r + p * 46, 0, Math.PI * 2);
       ctx.stroke();
+    }
+    for (let i = popups.length - 1; i >= 0; i--) {
+      const p = popups[i];
+      p.life += dt;
+      if (p.life >= p.maxLife) { popups.splice(i, 1); continue; }
+      const k = p.life / p.maxLife;
+      ctx.globalAlpha = Math.max(1 - k, 0);
+      ctx.fillStyle = p.color;
+      ctx.font = '800 22px "Big Shoulders Display", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.text, p.x, p.y - k * 60 - 10);
     }
     ctx.restore();
   }
@@ -413,6 +498,9 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEwBMb2dpYyBQcm8gWCAxMS4wLjFDT00AAGgAZW
       combo++; maxCombo = Math.max(maxCombo, combo);
       flashJudgement('HOLD!', '#6d8f85');
       spawnHitFx(lane, LANE_COLORS[lane]);
+      spawnPopup(lane, '+' + bonus, LANE_COLORS[lane]);
+      playChime();
+      screenShake();
     } else {
       n.holdSuccess = false;
       flashJudgement('LET GO', '#b3ad9d');
@@ -467,6 +555,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEwBMb2dpYyBQcm8gWCAxMS4wLjFDT00AAGgAZW
     laneHeld[0] = laneHeld[1] = laneHeld[2] = laneHeld[3] = false;
     particles.length = 0;
     rings.length = 0;
+    popups.length = 0;
     lastFrameTime = 0;
     inputActive = false;
     introPhase = '';
@@ -482,8 +571,31 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEwBMb2dpYyBQcm8gWCAxMS4wLjFDT00AAGgAZW
   }
 
   function restartGame() {
-    if (!running) return;
+    document.getElementById('pause-menu').classList.add('hidden');
     startGame();
+  }
+
+  function pauseGame() {
+    if (!running) return;
+    running = false;
+    audio.pause();
+    document.getElementById('pause-menu').classList.remove('hidden');
+  }
+
+  function resumeGame() {
+    document.getElementById('pause-menu').classList.add('hidden');
+    running = true;
+    lastFrameTime = 0;
+    audio.play();
+    requestAnimationFrame(loop);
+  }
+
+  function exitGame() {
+    running = false;
+    audio.pause();
+    document.getElementById('pause-menu').classList.add('hidden');
+    document.getElementById('screen-game').classList.add('hidden');
+    document.getElementById('screen-start').classList.remove('hidden');
   }
 
   function endGame() {
@@ -497,9 +609,12 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEwBMb2dpYyBQcm8gWCAxMS4wLjFDT00AAGgAZW
     document.getElementById('end-stats').textContent = acc + '% accuracy · x' + maxCombo + ' max combo';
   }
 
-  document.getElementById('btn-start').addEventListener('click', startGame);
+  document.getElementById('btn-start').addEventListener('click', () => { ensureAudioCtx(); startGame(); });
   document.getElementById('btn-replay').addEventListener('click', startGame);
-  document.getElementById('btn-restart').addEventListener('click', restartGame);
+  document.getElementById('btn-pause').addEventListener('click', pauseGame);
+  document.getElementById('btn-continue').addEventListener('click', resumeGame);
+  document.getElementById('btn-restart-confirm').addEventListener('click', restartGame);
+  document.getElementById('btn-exit').addEventListener('click', exitGame);
 
   document.querySelectorAll('.lane-zone').forEach(zone => {
     const lane = parseInt(zone.dataset.lane, 10);
@@ -528,7 +643,9 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEwBMb2dpYyBQcm8gWCAxMS4wLjFDT00AAGgAZW
     releaseLane(lane);
   });
 
-  document.getElementById('btn-download').addEventListener('click', () => {
+  const GAME_URL = 'https://sunboat89.github.io/immovable-game/';
+
+  function drawScoreCard() {
     const c = document.getElementById('end-score-canvas');
     const cx = c.getContext('2d');
     cx.fillStyle = '#14130f'; cx.fillRect(0, 0, 800, 800);
@@ -544,14 +661,50 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEwBMb2dpYyBQcm8gWCAxMS4wLjFDT00AAGgAZW
     cx.font = '600 24px monospace'; cx.fillStyle = '#6d8f85';
     cx.fillText(document.getElementById('end-stats').textContent.toUpperCase(), 400, 540);
     cx.font = '600 22px monospace'; cx.fillStyle = '#8d6db0';
-    cx.fillText('CAN YOU BEAT IT?', 400, 680);
+    cx.fillText('CAN YOU BEAT IT?', 400, 660);
     cx.font = '600 20px monospace'; cx.fillStyle = '#b3ad9d';
-    cx.fillText('mockedmonkey.com', 400, 730);
+    cx.fillText('mockedmonkey.com', 400, 710);
+    cx.fillText(GAME_URL.replace('https://', ''), 400, 745);
+    return c;
+  }
 
+  document.getElementById('btn-download').addEventListener('click', () => {
+    const c = drawScoreCard();
     const link = document.createElement('a');
     link.download = 'immovable-score.png';
     link.href = c.toDataURL('image/png');
     link.click();
+  });
+
+  document.getElementById('btn-share').addEventListener('click', async () => {
+    const c = drawScoreCard();
+    const shareText = 'I scored ' + score + ' points on "Immovable" by Mocked Monkey — can you beat it? ' + GAME_URL;
+    const btn = document.getElementById('btn-share');
+    const originalLabel = btn.textContent;
+    try {
+      if (navigator.canShare && c.toBlob) {
+        const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+        const file = new File([blob], 'immovable-score.png', { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: 'Immovable — the game', text: shareText });
+          return;
+        }
+      }
+      if (navigator.share) {
+        await navigator.share({ title: 'Immovable — the game', text: shareText, url: GAME_URL });
+        return;
+      }
+      throw new Error('no-share-api');
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // user cancelled the native share sheet
+      try {
+        await navigator.clipboard.writeText(shareText);
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = originalLabel; }, 1600);
+      } catch (_) {
+        window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText), '_blank');
+      }
+    }
   });
 
   resize();
