@@ -756,15 +756,20 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
       installHint.style.display = 'none';
       return;
     }
-    // Straight to on-screen instructions — no Share/Clipboard API calls, which can
-    // silently no-op in some mobile contexts and leave the button looking dead.
+    // Open the native share sheet directly (fire-and-forget — must be called
+    // synchronously here to keep the user-gesture context) and, alongside it,
+    // always show the manual "Add to Home Screen" steps for this platform too.
+    const url = 'https://sunboat89.github.io/immovable-game/';
+    if (navigator.share) {
+      navigator.share({ title: 'Immovable — the game', url }).catch(() => {});
+    }
     let msg;
     if (isIOS) {
-      msg = 'Tap the Share icon (square with an arrow) in Safari\'s toolbar, then "Add to Home Screen".';
+      msg = 'Or: tap the Share icon (square with an arrow) in Safari\'s toolbar, then "Add to Home Screen".';
     } else if (/android/i.test(navigator.userAgent)) {
-      msg = 'Open your browser menu (⋮) and choose "Add to Home screen" or "Install app".';
+      msg = 'Or: open your browser menu (⋮) and choose "Add to Home screen" / "Install app".';
     } else {
-      msg = 'Open your browser menu and choose "Add to Home Screen" / "Install app" — or just bookmark this page.';
+      msg = 'Or: open your browser menu and choose "Add to Home Screen" / "Install app".';
     }
     installHint.textContent = msg;
     installHint.style.display = 'block';
