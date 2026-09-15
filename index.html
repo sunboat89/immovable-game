@@ -120,8 +120,6 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
     <h1 style="font-size:clamp(2.2rem,10vw,3.4rem)">Immovable<br>the game</h1>
     <p style="color:var(--paper-dim); max-width:34ch; margin:0 auto">Tap the lanes in time with the song. Hold the long notes, and watch for two-note chords. Built from the real beat of the track.</p>
     <button class="btn accent" id="btn-start" style="margin-top:10px">Tap to play</button>
-    <button class="btn" id="btn-install" style="display:none; margin-top:10px; font-size:.75rem; padding:10px 16px;">⇩ Save this game</button>
-    <p id="install-hint" class="eyebrow" style="display:none; margin-top:8px; max-width:30ch; color:var(--paper-dim); line-height:1.5;"></p>
     <p class="eyebrow" style="margin-top:26px">Desktop: D F G H &nbsp;·&nbsp; Mobile: tap the lanes &nbsp;·&nbsp; hold for sustained notes</p>
 
     <div class="support-box">
@@ -727,58 +725,6 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
 
   document.getElementById('btn-start').addEventListener('click', () => { ensureAudioCtx(); startGame(); });
 
-  // "Save this game" — use the native install prompt where available (Chrome/Edge/Android),
-  // otherwise give clear on-page steps for the platform, since the browser gives no API
-  // to trigger "Add to Home Screen" directly on iOS or most non-Chromium browsers.
-  let deferredInstallPrompt = null;
-  const btnInstall = document.getElementById('btn-install');
-  const installHint = document.getElementById('install-hint');
-  const isStandalone = window.navigator.standalone === true ||
-    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    btnInstall.style.display = 'inline-block';
-  });
-  window.addEventListener('appinstalled', () => {
-    btnInstall.style.display = 'none';
-    installHint.style.display = 'none';
-  });
-
-  btnInstall.addEventListener('click', () => {
-    if (deferredInstallPrompt) {
-      deferredInstallPrompt.prompt();
-      deferredInstallPrompt.userChoice.then(() => {});
-      deferredInstallPrompt = null;
-      btnInstall.style.display = 'none';
-      installHint.style.display = 'none';
-      return;
-    }
-    // Open the native share sheet directly (fire-and-forget — must be called
-    // synchronously here to keep the user-gesture context) and, alongside it,
-    // always show the manual "Add to Home Screen" steps for this platform too.
-    const url = 'https://sunboat89.github.io/immovable-game/';
-    if (navigator.share) {
-      navigator.share({ title: 'Immovable — the game', url }).catch(() => {});
-    }
-    let msg;
-    if (isIOS) {
-      msg = 'Or: tap the Share icon (square with an arrow) in Safari\'s toolbar, then "Add to Home Screen".';
-    } else if (/android/i.test(navigator.userAgent)) {
-      msg = 'Or: open your browser menu (⋮) and choose "Add to Home screen" / "Install app".';
-    } else {
-      msg = 'Or: open your browser menu and choose "Add to Home Screen" / "Install app".';
-    }
-    installHint.textContent = msg;
-    installHint.style.display = 'block';
-  });
-  // show the button everywhere except when already running installed — there's always
-  // at least a text-instructions fallback now, so no feature-detection needed to gate it
-  if (!isStandalone) {
-    btnInstall.style.display = 'inline-block';
-  }
   document.getElementById('btn-replay').addEventListener('click', startGame);
   document.getElementById('btn-pause').addEventListener('click', pauseGame);
   document.getElementById('btn-continue').addEventListener('click', resumeGame);
