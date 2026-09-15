@@ -100,6 +100,12 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
 }
 #game-wrap.shake{animation:shake .28s ease;}
 
+@keyframes shakeMiss{
+  0%{transform:translate(0,0);} 25%{transform:translate(-3px,1px);} 50%{transform:translate(3px,-1px);}
+  75%{transform:translate(-2px,1px);} 100%{transform:translate(0,0);}
+}
+#game-wrap.shake-miss{animation:shakeMiss .18s ease;}
+
 /* Landscape rotation removed on request — the game now adapts naturally to
    whichever orientation the phone is already in (see .lanes-touch / canvas
    resize logic below), so it works fine held upright too. */
@@ -286,6 +292,13 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     void wrap.offsetWidth; // restart animation
     wrap.classList.add('shake');
     setTimeout(() => wrap.classList.remove('shake'), 300);
+  }
+  function screenShakeMiss() {
+    const wrap = document.getElementById('game-wrap');
+    wrap.classList.remove('shake-miss');
+    void wrap.offsetWidth;
+    wrap.classList.add('shake-miss');
+    setTimeout(() => wrap.classList.remove('shake-miss'), 200);
   }
   function spawnPopup(lane, text, color) {
     popups.push({
@@ -576,6 +589,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
       }
     } else {
       playMissSound(); // whiffed — pressed with nothing close enough in this lane
+      screenShakeMiss();
       vibrate(18);
     }
   }
