@@ -259,6 +259,27 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
       osc.stop(now + i * 0.025 + 0.42);
     });
   }
+  function playMissSound() {
+    // a quick dissonant "wrong note" buzz — two close, detuned sawtooth tones with a fast decay
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    [140, 151].forEach((freq) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.65, now + 0.16);
+      gain.gain.setValueAtTime(0.10, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.19);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    });
+  }
+  function vibrate(pattern) {
+    // best-effort — most iOS browsers simply don't implement the Vibration API at all
+    if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (_) {} }
+  }
   function screenShake() {
     const wrap = document.getElementById('game-wrap');
     wrap.classList.remove('shake');
@@ -543,6 +564,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
       score += Math.round(pts * (1 + Math.min(combo, 50) * 0.01));
       flashJudgement(label, color);
       spawnHitFx(lane, LANE_COLORS[lane]);
+      vibrate(12);
       updateHud();
       const zone = document.querySelector('.lane-zone[data-lane="' + lane + '"]');
       zone.classList.add('active');
@@ -552,6 +574,8 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
         best.holdActive = true;
         activeHold[lane] = best;
       }
+    } else {
+      playMissSound(); // whiffed — pressed with nothing close enough in this lane
     }
   }
 
@@ -578,6 +602,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
       spawnPopup(lane, '+' + bonus, LANE_COLORS[lane]);
       playChime();
       screenShake();
+      vibrate([15, 25, 15]);
     } else {
       n.holdSuccess = false;
       flashJudgement('LET GO', '#b3ad9d');
