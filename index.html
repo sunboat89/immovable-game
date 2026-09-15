@@ -63,14 +63,17 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
 #intro-overlay span.count{color:var(--noise); animation:countPop .3s ease;}
 
 #section-label{
-  position:absolute; top:64px; left:50%; z-index:8; pointer-events:none;
-  padding:9px 24px; background:rgba(20,19,15,.78); border:1px solid var(--noise);
-  color:var(--paper); font-family:var(--display); text-transform:uppercase; letter-spacing:.06em;
-  font-size:1rem; white-space:nowrap;
-  opacity:0; transform:translate(-50%,-8px);
-  transition:opacity .4s ease, transform .4s ease;
+  position:absolute; inset:0; z-index:8; pointer-events:none;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(20,19,15,.4);
+  opacity:0; transition:opacity .35s ease;
 }
-#section-label.show{ opacity:1; transform:translate(-50%,0); }
+#section-label.show{ opacity:1; }
+#section-label span{
+  font-family:var(--display); text-transform:uppercase; letter-spacing:.03em;
+  color:var(--paper); font-size:clamp(2rem,11vw,3.4rem); text-align:center;
+  text-shadow:0 0 24px rgba(0,0,0,.6);
+}
 @keyframes countPop{from{transform:scale(1.6); opacity:0;} to{transform:scale(1); opacity:1;}}
 
 #btn-pause{
@@ -151,7 +154,7 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
       <button class="btn" id="btn-pause" title="Pause"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="5" height="16"></rect><rect x="14" y="4" width="5" height="16"></rect></svg></button>
       <div id="judgement"></div>
       <div id="intro-overlay" class="hidden"><span id="intro-overlay-text">Intro</span></div>
-      <div id="section-label"></div>
+      <div id="section-label"><span id="section-label-text"></span></div>
       <div class="lanes-touch">
         <div class="lane-zone" data-lane="0"><span>D</span></div>
         <div class="lane-zone" data-lane="1"><span>F</span></div>
@@ -347,6 +350,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   const introOverlayEl = document.getElementById('intro-overlay');
   const introOverlayTextEl = document.getElementById('intro-overlay-text');
   const sectionLabelEl = document.getElementById('section-label');
+  const sectionLabelTextEl = document.getElementById('section-label-text');
 
   // Song-section callouts — timed to this specific mix, shown once each as the track passes them.
   const SECTION_LABELS = [
@@ -360,7 +364,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   let sectionLabelTimeout = null;
 
   function showSectionLabel(text) {
-    sectionLabelEl.textContent = text;
+    sectionLabelTextEl.textContent = text;
     if (sectionLabelTimeout) clearTimeout(sectionLabelTimeout);
     // restart the fade-in even if a label is already showing
     sectionLabelEl.classList.remove('show');
