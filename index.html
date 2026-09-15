@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Immovable — the game | Mocked Monkey</title>
 <meta name="description" content="Play along to Immovable by Mocked Monkey. A rhythm game built from the real beat of the song.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#b5482e">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;900&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
@@ -102,13 +107,14 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
     <h1 style="font-size:clamp(2.2rem,10vw,3.4rem)">Immovable<br>the game</h1>
     <p style="color:var(--paper-dim); max-width:34ch; margin:0 auto">Tap the lanes in time with the song. Hold the long notes, and watch for two-note chords. Built from the real beat of the track.</p>
     <button class="btn accent" id="btn-start" style="margin-top:10px">Tap to play</button>
+    <button class="btn" id="btn-install" style="display:none; margin-top:10px; font-size:.75rem; padding:10px 16px;">⇩ Save this game</button>
     <p class="eyebrow" style="margin-top:26px">Desktop: D F G H &nbsp;·&nbsp; Mobile: tap the lanes &nbsp;·&nbsp; hold for sustained notes</p>
 
     <div class="support-box">
       <p class="eyebrow" style="color:var(--noise)">♪ Enjoyed it? Support Mocked Monkey</p>
       <div class="support-links">
-        <a class="btn accent" href="https://open.spotify.com/track/49OVYRAIyJEACEmlsuPIKN" target="_blank" rel="noopener">Save Immovable</a>
-        <a class="btn accent" href="https://open.spotify.com/artist/09dAeA3OPza0biB1lYnrai" target="_blank" rel="noopener">Follow on Spotify</a>
+        <a class="btn accent" href="https://mockedmonkey.bandcamp.com/track/immovable" target="_blank" rel="noopener">Get Immovable on Bandcamp</a>
+        <a class="btn accent" href="https://mockedmonkey.bandcamp.com" target="_blank" rel="noopener">Follow on Bandcamp</a>
         <a class="btn accent" href="https://www.instagram.com/mocked.monkey/" target="_blank" rel="noopener">Follow on Instagram</a>
         <a class="btn accent" href="https://www.youtube.com/@mockedmonkey" target="_blank" rel="noopener">Watch on YouTube</a>
       </div>
@@ -326,19 +332,25 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
   const wrap = document.getElementById('game-wrap');
+  const progressFillEl = document.getElementById('progress-fill');
+  const introOverlayEl = document.getElementById('intro-overlay');
+  const introOverlayTextEl = document.getElementById('intro-overlay-text');
   let W = 0, H = 0, laneW = 0, hitY = 0;
 
   function resize() {
     const rect = wrap.getBoundingClientRect();
     W = rect.width; H = rect.height;
-    canvas.width = W * devicePixelRatio;
-    canvas.height = H * devicePixelRatio;
-    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2); // cap resolution — 3x on some phones is pure wasted paint cost
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     laneW = W / LANES;
-    hitY = H * 0.72;
+    hitY = H * 0.80;
   }
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', () => setTimeout(resize, 60));
+
+  let noteStartIdx = 0; // sliding window pointer — avoids scanning the whole chart every frame
 
   function drawLanes(t) {
     ctx.clearRect(0, 0, W, H);
@@ -353,9 +365,12 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, hitY); ctx.lineTo(W, hitY); ctx.stroke();
 
-    // notes
+    // notes — advance past anything that can no longer be on screen (even a long hold's tail)
     const noteH = 14;
-    for (const n of notes) {
+    while (noteStartIdx < notes.length && notes[noteStartIdx].t < t - 2.0) noteStartIdx++;
+    for (let idx = noteStartIdx; idx < notes.length; idx++) {
+      const n = notes[idx];
+      if (n.t > t + LEAD_TIME + 0.2) break; // sorted ascending — nothing further is visible yet
       if (n.hold > 0) {
         // hold note: render while the head hasn't resolved yet, or while the tail is still in flight
         const tailT = n.t + n.hold;
@@ -428,8 +443,8 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   }
 
   function updateIntroOverlay(t) {
-    const overlay = document.getElementById('intro-overlay');
-    const label = document.getElementById('intro-overlay-text');
+    const overlay = introOverlayEl;
+    const label = introOverlayTextEl;
     if (t >= ACTIVE_START) {
       inputActive = true; // unlock the instant we cross the line, independent of the "Go!" flash below
       if (introPhase !== 'live') {
@@ -547,7 +562,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
 
     const t = audio.currentTime;
     updateIntroOverlay(t);
-    document.getElementById('progress-fill').style.width = Math.min(100, (t / songDuration) * 100) + '%';
+    progressFillEl.style.width = Math.min(100, (t / songDuration) * 100) + '%';
     drawLanes(t);
     updateAndDrawFx(dt);
     if (inputActive) autoMiss(t);
@@ -558,10 +573,23 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     requestAnimationFrame(loop);
   }
 
+  function enterFullscreen() {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) { try { req.call(el).catch(() => {}); } catch (_) {} }
+  }
+  function exitFullscreen() {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      const ex = document.exitFullscreen || document.webkitExitFullscreen;
+      if (ex) { try { ex.call(document).catch(() => {}); } catch (_) {} }
+    }
+  }
+
   function startGame() {
     document.getElementById('screen-start').classList.add('hidden');
     document.getElementById('screen-end').classList.add('hidden');
     document.getElementById('screen-game').classList.remove('hidden');
+    enterFullscreen();
     resize();
     score = 0; combo = 0; maxCombo = 0; hits = 0; judged = 0;
     notes.forEach(n => { n.judged = false; n.holdActive = false; n.holdSuccess = null; });
@@ -570,15 +598,16 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     particles.length = 0;
     rings.length = 0;
     popups.length = 0;
+    noteStartIdx = 0;
     lastFrameTime = 0;
     inputActive = false;
     introPhase = '';
-    const overlay = document.getElementById('intro-overlay');
-    document.getElementById('intro-overlay-text').textContent = 'Intro';
-    document.getElementById('intro-overlay-text').className = '';
+    const overlay = introOverlayEl;
+    introOverlayTextEl.textContent = 'Intro';
+    introOverlayTextEl.className = '';
     overlay.classList.remove('hidden');
     updateHud();
-    document.getElementById('progress-fill').style.width = '0%';
+    progressFillEl.style.width = '0%';
     audio.currentTime = 0; // play the full track, intro included
     audio.play();
     running = true;
@@ -608,6 +637,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   function exitGame() {
     running = false;
     audio.pause();
+    exitFullscreen();
     document.getElementById('pause-menu').classList.add('hidden');
     document.getElementById('screen-game').classList.add('hidden');
     document.getElementById('screen-start').classList.remove('hidden');
@@ -616,6 +646,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   function endGame() {
     running = false;
     audio.pause();
+    exitFullscreen();
     document.getElementById('screen-game').classList.add('hidden');
     document.getElementById('screen-end').classList.remove('hidden');
     document.getElementById('end-score').textContent = score;
@@ -625,6 +656,48 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   }
 
   document.getElementById('btn-start').addEventListener('click', () => { ensureAudioCtx(); startGame(); });
+
+  // "Save this game" — use the native install prompt where available (Chrome/Edge/Android),
+  // otherwise fall back to sharing/copying the link so it can be added manually.
+  let deferredInstallPrompt = null;
+  const btnInstall = document.getElementById('btn-install');
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    btnInstall.style.display = 'inline-block';
+  });
+  window.addEventListener('appinstalled', () => { btnInstall.style.display = 'none'; });
+  btnInstall.addEventListener('click', async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      btnInstall.style.display = 'none';
+      return;
+    }
+    const url = 'https://sunboat89.github.io/immovable-game/';
+    const original = btnInstall.textContent;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Immovable — the game', url });
+        return;
+      }
+      throw new Error('no-share-api');
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      try {
+        await navigator.clipboard.writeText(url);
+        btnInstall.textContent = 'Link copied — add from your browser menu';
+        setTimeout(() => { btnInstall.textContent = original; }, 2400);
+      } catch (_) {
+        btnInstall.textContent = 'Use your browser menu → Add to Home Screen';
+        setTimeout(() => { btnInstall.textContent = original; }, 2400);
+      }
+    }
+  });
+  // show the button on browsers that support at least one of the two fallback paths,
+  // even before/without a beforeinstallprompt event (e.g. iOS Safari)
+  if (navigator.share || navigator.clipboard) btnInstall.style.display = 'inline-block';
   document.getElementById('btn-replay').addEventListener('click', startGame);
   document.getElementById('btn-pause').addEventListener('click', pauseGame);
   document.getElementById('btn-continue').addEventListener('click', resumeGame);
@@ -665,21 +738,25 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     const cx = c.getContext('2d');
     cx.fillStyle = '#14130f'; cx.fillRect(0, 0, 800, 800);
     cx.strokeStyle = 'rgba(239,234,224,.25)'; cx.lineWidth = 2; cx.strokeRect(20, 20, 760, 760);
+    cx.textAlign = 'center';
     cx.fillStyle = '#b5482e';
-    cx.font = '900 44px sans-serif'; cx.textAlign = 'center';
-    cx.fillText('MOCKED MONKEY', 400, 140);
+    cx.font = '900 60px sans-serif';
+    cx.fillText('MOCKED MONKEY', 400, 120);
+    cx.fillStyle = '#6d8f85';
+    cx.font = '700 28px monospace';
+    cx.fillText('IMMOVABLE · FROM MARASMA', 400, 165);
     cx.fillStyle = '#efeae0';
     cx.font = '900 160px sans-serif';
-    cx.fillText(String(score), 400, 400);
+    cx.fillText(String(score), 400, 420);
     cx.font = '600 26px monospace'; cx.fillStyle = '#b3ad9d';
-    cx.fillText('POINTS ON "IMMOVABLE"', 400, 450);
+    cx.fillText('POINTS', 400, 470);
     cx.font = '600 24px monospace'; cx.fillStyle = '#6d8f85';
-    cx.fillText(document.getElementById('end-stats').textContent.toUpperCase(), 400, 540);
+    cx.fillText(document.getElementById('end-stats').textContent.toUpperCase(), 400, 560);
     cx.font = '600 22px monospace'; cx.fillStyle = '#8d6db0';
-    cx.fillText('CAN YOU BEAT IT?', 400, 660);
+    cx.fillText('CAN YOU BEAT IT?', 400, 670);
     cx.font = '600 20px monospace'; cx.fillStyle = '#b3ad9d';
-    cx.fillText('mockedmonkey.com', 400, 710);
-    cx.fillText(GAME_URL.replace('https://', ''), 400, 745);
+    cx.fillText('mockedmonkey.com', 400, 715);
+    cx.fillText(GAME_URL.replace('https://', ''), 400, 748);
     return c;
   }
 
@@ -696,6 +773,10 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     const shareText = 'I scored ' + score + ' points on "Immovable" by Mocked Monkey — can you beat it? ' + GAME_URL;
     const btn = document.getElementById('btn-share');
     const originalLabel = btn.textContent;
+    // Also copy the link on its own: Instagram's Stories composer auto-suggests a link
+    // sticker from whatever URL is sitting in the clipboard, so this makes it one tap
+    // to attach a real clickable link even though the shared image itself can't carry one.
+    try { await navigator.clipboard.writeText(GAME_URL); } catch (_) {}
     try {
       if (navigator.canShare && c.toBlob) {
         const blob = await new Promise(res => c.toBlob(res, 'image/png'));
