@@ -38,8 +38,8 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
 #game-wrap{position:relative; width:min(420px,100vw); height:100%; margin:0 auto; touch-action:none;}
 #game-canvas{position:absolute; inset:0; width:100%; height:100%; display:block;}
 
-#hud{position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; padding:14px 18px; font-family:var(--mono); font-size:.85rem; z-index:5; pointer-events:none;}
-#progress-track{position:absolute; top:0; left:0; right:0; height:4px; background:rgba(239,234,224,.12); z-index:5;}
+#hud{position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; padding:16px 78px 16px 18px; font-family:var(--mono); font-size:.85rem; z-index:5; pointer-events:none;}
+#progress-track{position:absolute; top:0; left:0; right:0; height:10px; background:rgba(239,234,224,.12); z-index:5;}
 #progress-fill{height:100%; width:0%; background:var(--noise); transition:width .1s linear;}
 #hud .combo{color:var(--noise); font-weight:600;}
 #hud .score{color:var(--paper);}
@@ -59,7 +59,7 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
 @keyframes countPop{from{transform:scale(1.6); opacity:0;} to{transform:scale(1); opacity:1;}}
 
 #btn-pause{
-  position:absolute; top:14px; right:14px; z-index:9;
+  position:absolute; top:16px; right:16px; z-index:9;
   width:56px; height:56px; padding:0;
   display:flex; align-items:center; justify-content:center;
   border:2px solid var(--noise); color:var(--noise);
