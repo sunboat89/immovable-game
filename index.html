@@ -131,7 +131,7 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
     <div id="game-wrap">
       <canvas id="game-canvas"></canvas>
       <div id="progress-track"><div id="progress-fill"></div></div>
-      <div id="hud"><span class="score">SCORE <span id="score-val">0</span></span><span class="combo"><span id="combo-val">0</span>x</span></div>
+      <div id="hud"><span class="score">SCORE <span id="score-val">0</span></span><span class="combo" id="combo-wrap" style="visibility:hidden"><span id="combo-val">0</span>x</span></div>
       <button class="btn" id="btn-pause" title="Pause"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="5" height="16"></rect><rect x="14" y="4" width="5" height="16"></rect></svg></button>
       <div id="judgement"></div>
       <div id="intro-overlay" class="hidden"><span id="intro-overlay-text">Intro</span></div>
@@ -424,6 +424,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   function updateHud() {
     document.getElementById('score-val').textContent = score;
     document.getElementById('combo-val').textContent = combo;
+    document.getElementById('combo-wrap').style.visibility = combo > 0 ? 'visible' : 'hidden';
   }
 
   function updateIntroOverlay(t) {
