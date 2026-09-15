@@ -61,6 +61,16 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
 #intro-overlay.hidden{display:none;}
 #intro-overlay span{font-family:var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--paper); font-size:clamp(2.4rem,14vw,4.5rem); text-shadow:0 0 24px rgba(0,0,0,.6);}
 #intro-overlay span.count{color:var(--noise); animation:countPop .3s ease;}
+
+#section-label{
+  position:absolute; top:64px; left:50%; z-index:8; pointer-events:none;
+  padding:9px 24px; background:rgba(20,19,15,.78); border:1px solid var(--noise);
+  color:var(--paper); font-family:var(--display); text-transform:uppercase; letter-spacing:.06em;
+  font-size:1rem; white-space:nowrap;
+  opacity:0; transform:translate(-50%,-8px);
+  transition:opacity .4s ease, transform .4s ease;
+}
+#section-label.show{ opacity:1; transform:translate(-50%,0); }
 @keyframes countPop{from{transform:scale(1.6); opacity:0;} to{transform:scale(1); opacity:1;}}
 
 #btn-pause{
@@ -141,6 +151,7 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
       <button class="btn" id="btn-pause" title="Pause"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="5" height="16"></rect><rect x="14" y="4" width="5" height="16"></rect></svg></button>
       <div id="judgement"></div>
       <div id="intro-overlay" class="hidden"><span id="intro-overlay-text">Intro</span></div>
+      <div id="section-label"></div>
       <div class="lanes-touch">
         <div class="lane-zone" data-lane="0"><span>D</span></div>
         <div class="lane-zone" data-lane="1"><span>F</span></div>
@@ -335,6 +346,39 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   const progressFillEl = document.getElementById('progress-fill');
   const introOverlayEl = document.getElementById('intro-overlay');
   const introOverlayTextEl = document.getElementById('intro-overlay-text');
+  const sectionLabelEl = document.getElementById('section-label');
+
+  // Song-section callouts — timed to this specific mix, shown once each as the track passes them.
+  const SECTION_LABELS = [
+    { t: 4.8, text: 'Verse' },
+    { t: 25.3, text: 'Chorus' },
+    { t: 70.0, text: 'Solo' },
+    { t: 95.3, text: 'Final Chorus (almost there)' }
+  ];
+  let sectionLabelIdx = 0;
+  let endLabelShown = false;
+  let sectionLabelTimeout = null;
+
+  function showSectionLabel(text) {
+    sectionLabelEl.textContent = text;
+    if (sectionLabelTimeout) clearTimeout(sectionLabelTimeout);
+    // restart the fade-in even if a label is already showing
+    sectionLabelEl.classList.remove('show');
+    void sectionLabelEl.offsetWidth;
+    sectionLabelEl.classList.add('show');
+    sectionLabelTimeout = setTimeout(() => sectionLabelEl.classList.remove('show'), 2200);
+  }
+
+  function updateSectionLabels(t) {
+    while (sectionLabelIdx < SECTION_LABELS.length && t >= SECTION_LABELS[sectionLabelIdx].t) {
+      showSectionLabel(SECTION_LABELS[sectionLabelIdx].text);
+      sectionLabelIdx++;
+    }
+    if (!endLabelShown && songDuration > 6 && t >= songDuration - 5) {
+      showSectionLabel('Thank you for playing');
+      endLabelShown = true;
+    }
+  }
   let W = 0, H = 0, laneW = 0, hitY = 0;
 
   function resize() {
@@ -562,6 +606,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
 
     const t = audio.currentTime;
     updateIntroOverlay(t);
+    updateSectionLabels(t);
     progressFillEl.style.width = Math.min(100, (t / songDuration) * 100) + '%';
     drawLanes(t);
     updateAndDrawFx(dt);
@@ -599,6 +644,10 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     rings.length = 0;
     popups.length = 0;
     noteStartIdx = 0;
+    sectionLabelIdx = 0;
+    endLabelShown = false;
+    if (sectionLabelTimeout) clearTimeout(sectionLabelTimeout);
+    sectionLabelEl.classList.remove('show');
     lastFrameTime = 0;
     inputActive = false;
     introPhase = '';
