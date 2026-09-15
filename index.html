@@ -747,41 +747,31 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     installHint.style.display = 'none';
   });
 
-  btnInstall.addEventListener('click', async () => {
+  btnInstall.addEventListener('click', () => {
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt.userChoice.then(() => {});
       deferredInstallPrompt = null;
       btnInstall.style.display = 'none';
       installHint.style.display = 'none';
       return;
     }
+    // Straight to on-screen instructions — no Share/Clipboard API calls, which can
+    // silently no-op in some mobile contexts and leave the button looking dead.
+    let msg;
     if (isIOS) {
-      installHint.textContent = 'Tap the Share icon (□↑) in Safari\'s toolbar, then "Add to Home Screen".';
-      installHint.style.display = 'block';
-      return;
+      msg = 'Tap the Share icon (square with an arrow) in Safari\'s toolbar, then "Add to Home Screen".';
+    } else if (/android/i.test(navigator.userAgent)) {
+      msg = 'Open your browser menu (⋮) and choose "Add to Home screen" or "Install app".';
+    } else {
+      msg = 'Open your browser menu and choose "Add to Home Screen" / "Install app" — or just bookmark this page.';
     }
-    const url = 'https://sunboat89.github.io/immovable-game/';
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'Immovable — the game', url });
-        return;
-      }
-      throw new Error('no-share-api');
-    } catch (err) {
-      if (err && err.name === 'AbortError') return;
-      try {
-        await navigator.clipboard.writeText(url);
-        installHint.textContent = 'Link copied — open your browser menu and choose "Add to Home Screen" or "Install app".';
-      } catch (_) {
-        installHint.textContent = 'Open your browser menu and choose "Add to Home Screen" or "Install app".';
-      }
-      installHint.style.display = 'block';
-    }
+    installHint.textContent = msg;
+    installHint.style.display = 'block';
   });
-  // show the button on any browser that offers at least one path in (native prompt,
-  // iOS instructions, share, or clipboard) — but not if already running installed
-  if (!isStandalone && (navigator.share || navigator.clipboard || isIOS)) {
+  // show the button everywhere except when already running installed — there's always
+  // at least a text-instructions fallback now, so no feature-detection needed to gate it
+  if (!isStandalone) {
     btnInstall.style.display = 'inline-block';
   }
   document.getElementById('btn-replay').addEventListener('click', startGame);
