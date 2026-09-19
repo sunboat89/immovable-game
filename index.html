@@ -41,11 +41,12 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
 .btn:active{ background:var(--paper); color:var(--ink); }
 
 #game-wrap{position:relative; width:min(420px,100vw); height:100%; margin:0 auto; touch-action:none;}
+#game-canvas-bg{position:absolute; inset:0; width:100%; height:100%; display:block;}
 #game-canvas{position:absolute; inset:0; width:100%; height:100%; display:block;}
 
 #hud{position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; padding:16px 78px 16px 18px; font-family:var(--mono); font-size:.85rem; z-index:5; pointer-events:none;}
 #progress-track{position:absolute; top:0; left:0; right:0; height:10px; background:rgba(239,234,224,.12); z-index:5;}
-#progress-fill{height:100%; width:0%; background:var(--noise); transition:width .1s linear;}
+#progress-fill{height:100%; width:100%; background:var(--noise); transform:scaleX(0); transform-origin:left center;}
 #hud .combo{color:var(--noise); font-weight:600;}
 #hud .score{color:var(--paper);}
 
@@ -153,6 +154,7 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
   <!-- GAME SCREEN -->
   <div id="screen-game" class="screen hidden" style="padding:0">
     <div id="game-wrap">
+      <canvas id="game-canvas-bg"></canvas>
       <canvas id="game-canvas"></canvas>
       <div id="progress-track"><div id="progress-fill"></div></div>
       <div id="hud"><span class="score">SCORE <span id="score-val">0</span></span><span class="combo" id="combo-wrap" style="visibility:hidden"><span id="combo-val">0</span>x</span></div>
@@ -282,10 +284,6 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
       osc.stop(now + 0.23);
     });
   }
-  function vibrate(pattern) {
-    // best-effort — most iOS browsers simply don't implement the Vibration API at all
-    if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (_) {} }
-  }
   function screenShake() {
     const wrap = document.getElementById('game-wrap');
     wrap.classList.remove('shake');
@@ -312,7 +310,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   function spawnHitFx(lane, color) {
     const x = lane * laneW + laneW / 2;
     const y = hitY;
-    const count = 12;
+    const count = 8; // trimmed from 12 — cheaper on dense chord/hold sections, barely visible difference
     for (let i = 0; i < count; i++) {
       const ang = (Math.PI / count) * i - Math.PI / 2 + (Math.random() - 0.5) * 0.6;
       const speed = 140 + Math.random() * 180;
@@ -326,9 +324,12 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
         color
       });
     }
+    // hard cap — a run of rapid hits/chords should never let this grow unbounded
+    if (particles.length > 120) particles.splice(0, particles.length - 120);
     rings.push({ x, y, r: 6, life: 0, maxLife: 0.38, color });
+    if (rings.length > 12) rings.shift();
 
-    const zone = document.querySelector('.lane-zone[data-lane="' + lane + '"]');
+    const zone = laneZoneEls[lane];
     if (zone) {
       zone.style.setProperty('--glow', color);
       zone.classList.add('hit-glow');
@@ -376,6 +377,8 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     ctx.restore();
   }
 
+  const canvasBg = document.getElementById('game-canvas-bg');
+  const ctxBg = canvasBg.getContext('2d');
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
   const wrap = document.getElementById('game-wrap');
@@ -384,6 +387,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   const introOverlayTextEl = document.getElementById('intro-overlay-text');
   const sectionLabelEl = document.getElementById('section-label');
   const sectionLabelTextEl = document.getElementById('section-label-text');
+  const laneZoneEls = [0, 1, 2, 3].map(i => document.querySelector('.lane-zone[data-lane="' + i + '"]'));
 
   // Song-section callouts — timed to this specific mix, shown once each as the track passes them.
   const SECTION_LABELS = [
@@ -427,26 +431,34 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     canvas.width = W * dpr;
     canvas.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvasBg.width = W * dpr;
+    canvasBg.height = H * dpr;
+    ctxBg.setTransform(dpr, 0, 0, dpr, 0, 0);
     laneW = W / LANES;
     hitY = H * 0.80;
+    drawStaticBackground();
   }
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', () => setTimeout(resize, 60));
+
+  // Lane separators + hit line never change between resizes, so they're drawn once onto
+  // a separate background canvas instead of being redrawn on every single animation frame.
+  function drawStaticBackground() {
+    ctxBg.clearRect(0, 0, W, H);
+    ctxBg.strokeStyle = 'rgba(239,234,224,.12)';
+    ctxBg.lineWidth = 1;
+    for (let i = 1; i < LANES; i++) {
+      ctxBg.beginPath(); ctxBg.moveTo(i * laneW, 0); ctxBg.lineTo(i * laneW, H); ctxBg.stroke();
+    }
+    ctxBg.strokeStyle = 'rgba(239,234,224,.5)';
+    ctxBg.lineWidth = 2;
+    ctxBg.beginPath(); ctxBg.moveTo(0, hitY); ctxBg.lineTo(W, hitY); ctxBg.stroke();
+  }
 
   let noteStartIdx = 0; // sliding window pointer — avoids scanning the whole chart every frame
 
   function drawLanes(t) {
     ctx.clearRect(0, 0, W, H);
-    // lane separators
-    ctx.strokeStyle = 'rgba(239,234,224,.12)';
-    ctx.lineWidth = 1;
-    for (let i = 1; i < LANES; i++) {
-      ctx.beginPath(); ctx.moveTo(i * laneW, 0); ctx.lineTo(i * laneW, H); ctx.stroke();
-    }
-    // hit line
-    ctx.strokeStyle = 'rgba(239,234,224,.5)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, hitY); ctx.lineTo(W, hitY); ctx.stroke();
 
     // notes — advance past anything that can no longer be on screen (even a long hold's tail)
     const noteH = 14;
@@ -577,9 +589,8 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
       score += Math.round(pts * (1 + Math.min(combo, 50) * 0.01));
       flashJudgement(label, color);
       spawnHitFx(lane, LANE_COLORS[lane]);
-      vibrate(12);
       updateHud();
-      const zone = document.querySelector('.lane-zone[data-lane="' + lane + '"]');
+      const zone = laneZoneEls[lane];
       zone.classList.add('active');
       setTimeout(() => zone.classList.remove('active'), 90);
 
@@ -590,7 +601,6 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     } else {
       playMissSound(); // whiffed — pressed with nothing close enough in this lane
       screenShakeMiss();
-      vibrate(18);
     }
   }
 
@@ -617,7 +627,6 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
       spawnPopup(lane, '+' + bonus, LANE_COLORS[lane]);
       playChime();
       screenShake();
-      vibrate([15, 25, 15]);
     } else {
       n.holdSuccess = false;
       flashJudgement('LET GO', '#b3ad9d');
@@ -652,7 +661,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     const t = audio.currentTime;
     updateIntroOverlay(t);
     updateSectionLabels(t);
-    progressFillEl.style.width = Math.min(100, (t / songDuration) * 100) + '%';
+    progressFillEl.style.transform = 'scaleX(' + Math.min(1, t / songDuration) + ')';
     drawLanes(t);
     updateAndDrawFx(dt);
     if (inputActive) autoMiss(t);
@@ -715,7 +724,7 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
     introOverlayTextEl.className = '';
     overlay.classList.remove('hidden');
     updateHud();
-    progressFillEl.style.width = '0%';
+    progressFillEl.style.transform = 'scaleX(0)';
     audio.currentTime = 0; // play the full track, intro included
     audio.play();
     running = true;
