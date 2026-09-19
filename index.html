@@ -780,14 +780,22 @@ const AUDIO_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGVuZ2
   document.getElementById('btn-restart-confirm').addEventListener('click', restartGame);
   document.getElementById('btn-exit').addEventListener('click', exitGame);
 
+  // On touch-capable devices, only touch listeners are attached: some mobile browsers
+  // still fire a synthetic mousedown ~300ms after a real touchstart even with
+  // preventDefault(), which was double-handling every tap (one real hit + one phantom
+  // "miss" a moment later) — exactly what felt like keys not registering reliably.
+  const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
   document.querySelectorAll('.lane-zone').forEach(zone => {
     const lane = parseInt(zone.dataset.lane, 10);
     zone.addEventListener('touchstart', (e) => { e.preventDefault(); if (running) judgeLane(lane); }, { passive: false });
     zone.addEventListener('touchend', (e) => { e.preventDefault(); if (running) releaseLane(lane); }, { passive: false });
     zone.addEventListener('touchcancel', (e) => { e.preventDefault(); if (running) releaseLane(lane); }, { passive: false });
-    zone.addEventListener('mousedown', (e) => { e.preventDefault(); if (running) judgeLane(lane); });
-    zone.addEventListener('mouseup', (e) => { e.preventDefault(); if (running) releaseLane(lane); });
-    zone.addEventListener('mouseleave', (e) => { if (running && laneHeld[lane]) releaseLane(lane); });
+    if (!isTouchDevice) {
+      zone.addEventListener('mousedown', (e) => { e.preventDefault(); if (running) judgeLane(lane); });
+      zone.addEventListener('mouseup', (e) => { e.preventDefault(); if (running) releaseLane(lane); });
+      zone.addEventListener('mouseleave', (e) => { if (running && laneHeld[lane]) releaseLane(lane); });
+    }
   });
 
   const heldKeys = new Set();
