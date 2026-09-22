@@ -204,7 +204,7 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
   // player is currently hitting or missing, Guitar-Hero style. All three share one
   // AudioContext clock so they can never drift apart over the length of the song.
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  function ensureAudioCtx() { if (audioCtx.state === 'suspended') audioCtx.resume(); }
+  function ensureAudioCtx() { return audioCtx.state === 'suspended' ? audioCtx.resume() : Promise.resolve(); }
 
   function b64ToArrayBuffer(b64) {
     const bin = atob(b64);
@@ -737,21 +737,26 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
 
   function loop(now) {
     if (!running) return;
-    if (!lastFrameTime) lastFrameTime = now || performance.now();
-    const nowMs = now || performance.now();
-    const dt = Math.min((nowMs - lastFrameTime) / 1000, 0.05);
-    lastFrameTime = nowMs;
+    try {
+      if (!lastFrameTime) lastFrameTime = now || performance.now();
+      const nowMs = now || performance.now();
+      const dt = Math.min((nowMs - lastFrameTime) / 1000, 0.05);
+      lastFrameTime = nowMs;
 
-    const t = getSongTime();
-    updateIntroOverlay(t);
-    updateSectionLabels(t);
-    progressFillEl.style.transform = 'scaleX(' + Math.min(1, t / songDuration) + ')';
-    drawLanes(t);
-    updateAndDrawFx(dt);
-    if (inputActive) autoMiss(t);
-    if (t >= songDuration - 0.05) {
-      endGame();
-      return;
+      const t = getSongTime();
+      updateIntroOverlay(t);
+      updateSectionLabels(t);
+      progressFillEl.style.transform = 'scaleX(' + Math.min(1, t / songDuration) + ')';
+      drawLanes(t);
+      updateAndDrawFx(dt);
+      if (inputActive) autoMiss(t);
+      if (t >= songDuration - 0.05) {
+        endGame();
+        return;
+      }
+    } catch (err) {
+      // a hiccup here should never permanently freeze the game — log it and keep going
+      console.error('game loop error', err);
     }
     requestAnimationFrame(loop);
   }
@@ -809,7 +814,9 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     overlay.classList.remove('hidden');
     updateHud();
     progressFillEl.style.transform = 'scaleX(0)';
-    playFrom(0); // play the full mix (main + crowd + muted suonante), intro included
+    ensureAudioCtx().then(() => {
+      playFrom(0); // play the full mix (main + crowd + muted suonante), intro included
+    });
     running = true;
     requestAnimationFrame(loop);
   }
@@ -830,9 +837,13 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     document.getElementById('pause-menu').classList.add('hidden');
     running = true;
     lastFrameTime = 0;
-    resumePlayback();
+    ensureAudioCtx().then(() => { resumePlayback(); });
     requestAnimationFrame(loop);
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && running) pauseGame();
+  });
 
   function exitGame() {
     running = false;
@@ -855,7 +866,7 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     document.getElementById('end-stats').textContent = acc + '% accuracy · x' + maxCombo + ' max combo';
   }
 
-  document.getElementById('btn-start').addEventListener('click', () => { enterFullscreen(); ensureAudioCtx(); buffersReady.then(startGame); });
+  document.getElementById('btn-start').addEventListener('click', () => { enterFullscreen(); buffersReady.then(startGame); });
 
   document.getElementById('btn-replay').addEventListener('click', startGame);
   document.getElementById('btn-pause').addEventListener('click', pauseGame);
