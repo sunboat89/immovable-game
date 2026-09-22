@@ -219,18 +219,20 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
   }
 
   async function ensureAudioCtx() {
-    if (audioCtx.state === 'closed') {
-      recreateAudioCtx();
-      return;
-    }
-    if (audioCtx.state !== 'suspended') return;
-    await audioCtx.resume().catch(() => {});
-    if (audioCtx.state === 'suspended') {
-      // some browsers need a beat before a second resume() attempt actually sticks
+    if (audioCtx.state === 'running') return;
+    if (audioCtx.state !== 'closed') {
+      await audioCtx.resume().catch(() => {});
+      if (audioCtx.state === 'running') return;
       await new Promise(res => setTimeout(res, 80));
       await audioCtx.resume().catch(() => {});
+      if (audioCtx.state === 'running') return;
     }
-    if (audioCtx.state === 'closed') recreateAudioCtx();
+    // Still not actually running (or was already closed). Some mobile browsers leave a
+    // context permanently stuck reporting 'suspended' after a long background period —
+    // resume() keeps "succeeding" without ever really resuming. Rather than trust it
+    // further, just build a fresh context, which is the reliable fix.
+    recreateAudioCtx();
+    await audioCtx.resume().catch(() => {});
   }
 
   function b64ToArrayBuffer(b64) {
@@ -860,10 +862,34 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     document.getElementById('pause-menu').classList.remove('hidden');
   }
 
+  // A short, standalone 3-2-1-Go — independent of the song's own clock — shown every
+  // time play resumes after a pause, so it's always clear the game is about to move
+  // again (and it buys the audio engine a little extra time to settle first).
+  function showResumeCountdown() {
+    return new Promise(resolve => {
+      const overlay = introOverlayEl;
+      const label = introOverlayTextEl;
+      overlay.classList.remove('hidden');
+      const steps = ['3', '2', '1', 'Go!'];
+      let i = 0;
+      function next() {
+        if (i >= steps.length) { overlay.classList.add('hidden'); resolve(); return; }
+        const s = steps[i++];
+        label.textContent = s;
+        label.className = s === 'Go!' ? '' : 'count';
+        void label.offsetWidth;
+        if (s !== 'Go!') { label.classList.remove('count'); void label.offsetWidth; label.classList.add('count'); }
+        setTimeout(next, 500);
+      }
+      next();
+    });
+  }
+
   async function resumeGame() {
     document.getElementById('pause-menu').classList.add('hidden');
     lastFrameTime = 0;
     await ensureAudioCtx();
+    await showResumeCountdown();
     resumePlayback();
     running = true;
     requestAnimationFrame(loop);
