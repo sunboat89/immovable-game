@@ -180,6 +180,7 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
       <div class="tag">points</div>
       <div class="tag" style="margin-top:14px" id="end-stats">0% accuracy · x0 max combo</div>
       <div class="tag" style="margin-top:14px; color:var(--listen)">Immovable · Mocked Monkey</div>
+      <div class="tag" style="margin-top:18px; color:var(--noise); font-weight:700">Follow the artist for more<br>bullshit like this -&gt; @mocked.monkey</div>
     </div>
     <div style="display:flex; gap:12px; margin-top:20px; flex-wrap:wrap; justify-content:center">
       <button class="btn accent" id="btn-share">Share score</button>
@@ -554,14 +555,14 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
   // a separate background canvas instead of being redrawn on every single animation frame.
   function drawStaticBackground() {
     ctxBg.clearRect(0, 0, W, H);
-    ctxBg.strokeStyle = 'rgba(239,234,224,.12)';
+    ctxBg.strokeStyle = 'rgba(239,234,224,.2)';
     ctxBg.lineWidth = 1;
     for (let i = 1; i < LANES; i++) {
       ctxBg.beginPath(); ctxBg.moveTo(i * laneW, 0); ctxBg.lineTo(i * laneW, H); ctxBg.stroke();
     }
     // horizontal rungs across the fall zone, purely a visual timing guide (static, drawn
     // once here rather than per frame, so this is free in terms of runtime cost)
-    ctxBg.strokeStyle = 'rgba(239,234,224,.07)';
+    ctxBg.strokeStyle = 'rgba(239,234,224,.14)';
     ctxBg.lineWidth = 1;
     const rungGap = 64;
     for (let y = hitY - rungGap; y > 0; y -= rungGap) {
@@ -579,7 +580,7 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
 
     // notes - advance past anything that can no longer be on screen (even a long hold's tail)
     const noteH = 14;
-    while (noteStartIdx < notes.length && notes[noteStartIdx].t < t - 2.0) noteStartIdx++;
+    while (noteStartIdx < notes.length && (notes[noteStartIdx].t + (notes[noteStartIdx].hold || 0)) < t - 0.5) noteStartIdx++;
     for (let idx = noteStartIdx; idx < notes.length; idx++) {
       const n = notes[idx];
       if (n.t > t + LEAD_TIME + 0.2) break; // sorted ascending - nothing further is visible yet
@@ -603,7 +604,8 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
         // sustain body
         ctx.fillStyle = LANE_COLORS[n.lane];
         ctx.globalAlpha = active ? 0.55 : (n.judged ? 0.22 : 0.32);
-        ctx.fillRect(x + laneW * 0.30, Math.max(yTail, -20), laneW * 0.4, Math.max(yHead - yTail, 0));
+        const barTop = Math.max(yTail, -20);
+        ctx.fillRect(x + laneW * 0.30, barTop, laneW * 0.4, Math.max(yHead - barTop, 0));
         ctx.globalAlpha = 1;
         // head cap (only while not yet resolved)
         if (!n.judged) {
