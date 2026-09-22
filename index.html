@@ -204,7 +204,15 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
   // player is currently hitting or missing, Guitar-Hero style. All three share one
   // AudioContext clock so they can never drift apart over the length of the song.
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  function ensureAudioCtx() { return audioCtx.state === 'suspended' ? audioCtx.resume() : Promise.resolve(); }
+  function ensureAudioCtx() {
+    if (audioCtx.state !== 'suspended') return Promise.resolve();
+    return audioCtx.resume().catch(() => {}).then(() => {
+      if (audioCtx.state === 'suspended') {
+        // some browsers need a beat before a second resume() attempt actually sticks
+        return new Promise(res => setTimeout(res, 80)).then(() => audioCtx.resume().catch(() => {}));
+      }
+    });
+  }
 
   function b64ToArrayBuffer(b64) {
     const bin = atob(b64);
@@ -787,7 +795,8 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     }
   }
 
-  function startGame() {
+  async function startGame() {
+    running = false; // don't let a stray in-flight loop tick with stale state while we set up
     document.getElementById('screen-start').classList.add('hidden');
     document.getElementById('screen-end').classList.add('hidden');
     document.getElementById('screen-game').classList.remove('hidden');
@@ -814,9 +823,8 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     overlay.classList.remove('hidden');
     updateHud();
     progressFillEl.style.transform = 'scaleX(0)';
-    ensureAudioCtx().then(() => {
-      playFrom(0); // play the full mix (main + crowd + muted suonante), intro included
-    });
+    await ensureAudioCtx();
+    playFrom(0); // play the full mix (main + crowd + muted suonante), intro included
     running = true;
     requestAnimationFrame(loop);
   }
@@ -833,17 +841,22 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     document.getElementById('pause-menu').classList.remove('hidden');
   }
 
-  function resumeGame() {
+  async function resumeGame() {
     document.getElementById('pause-menu').classList.add('hidden');
-    running = true;
     lastFrameTime = 0;
-    ensureAudioCtx().then(() => { resumePlayback(); });
+    await ensureAudioCtx();
+    resumePlayback();
+    running = true;
     requestAnimationFrame(loop);
   }
 
+  // Several signals for "the user left the app" — different browsers are inconsistent
+  // about which one they actually fire when minimizing, switching apps, or locking the screen.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && running) pauseGame();
   });
+  window.addEventListener('blur', () => { if (running) pauseGame(); });
+  window.addEventListener('pagehide', () => { if (running) pauseGame(); });
 
   function exitGame() {
     running = false;
