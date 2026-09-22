@@ -897,10 +897,13 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
 
   // Several signals for "the user left the app" — different browsers are inconsistent
   // about which one they actually fire when minimizing, switching apps, or locking the screen.
+  // visibilitychange is the reliable signal for "actually backgrounded". blur was
+  // removed — on mobile it can fire during normal play (rapid taps, the address bar
+  // auto-hiding, system gesture recognition) without the app really leaving foreground,
+  // which was pausing the game at random moments mid-song.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && running) pauseGame();
   });
-  window.addEventListener('blur', () => { if (running) pauseGame(); });
   window.addEventListener('pagehide', () => { if (running) pauseGame(); });
 
   function exitGame() {
