@@ -149,6 +149,7 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
     </div>
 
     <button class="btn accent" id="btn-start" style="margin-top:8px">Tap to play</button>
+    <p id="audio-error" class="eyebrow" style="display:none; margin-top:10px; color:var(--noise); max-width:32ch">Something went wrong loading the audio. Try reloading the page (a hard refresh helps: Cmd+Shift+R on Mac).</p>
     <p class="eyebrow" style="margin-top:14px">D F G H on desktop · tap the lanes on mobile</p>
 
     <div class="support-box">
@@ -273,7 +274,14 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     audioCtx.decodeAudioData(b64ToArrayBuffer(MAIN_BASE64)),
     audioCtx.decodeAudioData(b64ToArrayBuffer(CROWD_BASE64)),
     audioCtx.decodeAudioData(b64ToArrayBuffer(SUONANTE_BASE64))
-  ]).then(([m, c, s]) => { mainBuffer = m; crowdBuffer = c; suonanteBuffer = s; });
+  ]).then(([m, c, s]) => { mainBuffer = m; crowdBuffer = c; suonanteBuffer = s; })
+    .catch(err => {
+      // don't fail silently — a decode error used to just leave the play button inert
+      console.error('audio decode failed', err);
+      const el = document.getElementById('audio-error');
+      if (el) el.style.display = 'block';
+      throw err;
+    });
 
   let mainSrc = null, crowdSrc = null, suonanteSrc = null;
   let mainGain = null, crowdGain = null, suonanteGain = null;
@@ -966,7 +974,14 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     document.getElementById('end-stats').textContent = acc + '% accuracy · x' + maxCombo + ' max combo';
   }
 
-  document.getElementById('btn-start').addEventListener('click', () => { enterFullscreen(); buffersReady.then(startGame); });
+  document.getElementById('btn-start').addEventListener('click', () => {
+    enterFullscreen();
+    buffersReady.then(startGame).catch(err => {
+      console.error('could not start the game', err);
+      const el = document.getElementById('audio-error');
+      if (el) el.style.display = 'block';
+    });
+  });
 
   document.getElementById('btn-replay').addEventListener('click', startGame);
   document.getElementById('btn-pause').addEventListener('click', pauseGame);
