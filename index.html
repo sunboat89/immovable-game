@@ -90,7 +90,7 @@ h1,h2{font-family:var(--display); text-transform:uppercase; font-weight:800; let
 
 .support-box{margin-top:28px; padding:18px 16px; border:1px solid var(--line); border-radius:2px; display:flex; flex-direction:column; align-items:center; gap:14px; background:rgba(181,72,46,.07); flex-shrink:0;}
 .support-links{display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; max-width:320px;}
-.support-links a.btn{font-size:.64rem; padding:10px 8px; text-decoration:none; cursor:pointer; text-align:center;}
+.support-links a.btn{font-size:.64rem; padding:10px 8px; text-decoration:none; cursor:pointer; text-align:center; justify-content:center; min-height:52px; box-sizing:border-box;}
 .support-links a.btn:hover, .support-links a.btn:active{background:var(--noise); color:var(--paper);}
 
 .howto-demo{margin-top:14px; display:flex; flex-direction:column; align-items:center; gap:4px;}
@@ -976,6 +976,10 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
 
   document.getElementById('btn-start').addEventListener('click', () => {
     enterFullscreen();
+    // Safari is much stricter than Chrome about this: resume() has to be fired
+    // synchronously inside the actual click, not after a microtask/promise tick, or it
+    // won't count as "within a user gesture" and playback silently never starts.
+    audioCtx.resume().catch(() => {});
     buffersReady.then(startGame).catch(err => {
       console.error('could not start the game', err);
       const el = document.getElementById('audio-error');
